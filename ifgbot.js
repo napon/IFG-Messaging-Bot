@@ -15,7 +15,7 @@ if (!process.env.verify_token) {
 
 var Botkit = require('./lib/Botkit.js');
 var graph = require('fbgraph');
-var os = require('os');
+var http = require('http');
 
 graph.setAccessToken(process.env.access_token);
 graph.setVersion('2.4');
@@ -54,7 +54,7 @@ function getUpcomingEvents(cb) {
             cb([]);
             return;
         }
-        
+
         var nextEvent = res.data[0];
         var eventDate = new Date(nextEvent.start_time);
         var todayDate = new Date();
@@ -85,7 +85,7 @@ function getUpcomingEvents(cb) {
     });
 }
 
-controller.hears(['the next event', 'coming up events', 'event coming up'], 'message_received', 
+controller.hears(['the next event', 'coming up event', 'event coming up'], 'message_received',
     function(bot, message) {
     getUpcomingEvents(function(events) {
         if (events.length == 0) {
@@ -100,8 +100,25 @@ controller.hears(['the next event', 'coming up events', 'event coming up'], 'mes
                         'elements': events
                     }
                 }
-            });    
+            });
         }
+    });
+});
+
+controller.hears(['verse', 'passage', 'bible'], 'message_received', function(bot, message) {
+    http.get('http://www.ourmanna.com/verses/api/get/?format=json', function(res) {
+        var body = '';
+        res.on('data', function(d) {
+            body += d;
+        });
+        res.on('end', function(d) {
+            var parsedJSON = JSON.parse(body);
+            var verse = parsedJSON.verse.details.text;
+            var reference = parsedJSON.verse.details.reference;
+            var version = parsedJSON.verse.details.version;
+            bot.reply(message, '"' + verse + '" - ' + reference + ' - ' + version + '.');
+            bot.reply(message, 'Have an amazing day! <3');
+        });
     });
 });
 
@@ -109,6 +126,16 @@ controller.hears(['identify yourself', 'who are you', 'your name', 'who made you
     function(bot, message) {
         bot.reply(message,
             "Beep! Boop! I am a bot created by IFG. You can report your concerns directly to my master at <ifg.ivcf@gmail.com>");
+});
+
+controller.hears(['thanks', 'thank you', 'ty'], 'message_received', function(bot, message) {
+    var responses = [':)', 'No problem! :)', ':D', 'You are welcome!'];
+    bot.reply(message, responses[Math.floor(Math.random()*responses.length)]);
+});
+
+controller.hears(['bye'], 'message_received', function(bot, message) {
+    var responses = ['See ya!', 'Good bye!'];
+    bot.reply(message, responses[Math.floor(Math.random()*responses.length)]);
 });
 
 controller.hears(['uptime', 'how old are you'], 'message_received',
