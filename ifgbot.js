@@ -21,7 +21,7 @@ graph.setAccessToken(process.env.access_token);
 graph.setVersion('2.4');
 
 var controller = Botkit.facebookbot({
-    debug: true,
+    debug: false,
     access_token: process.env.page_token,
     verify_token: process.env.verify_token,
 });
@@ -36,13 +36,7 @@ controller.setupWebserver(process.env.port || 3000, function(err, webserver) {
 });
 
 controller.hears(['hello', 'hi', 'hey'], 'message_received', function(bot, message) {
-    controller.storage.users.get(message.user, function(err, user) {
-        if (user && user.name) {
-            bot.reply(message, 'Hello ' + user.name + '!!');
-        } else {
-            bot.reply(message, "Hello! I'm a bot for IFG! You can ask me about our upcoming events or ask me for a Bible verse of the day! :)");
-        }
-    });
+    bot.reply(message, "Hello! I'm a bot for IFG! You can ask me about our upcoming events or ask me for a Bible verse of the day! :)");
 });
 
 function getUpcomingEvents(cb) {
@@ -54,18 +48,28 @@ function getUpcomingEvents(cb) {
             cb([]);
             return;
         }
+	
+	var data = res.data;
+	data.sort(function (a, b) { return new Date(a.start_time).getTime() - new Date(b.start_time).getTime(); });
 
-        var nextEvent = res.data[0];
-        var eventDate = new Date(nextEvent.start_time);
-        var todayDate = new Date();
-        if (eventDate.getTime() < todayDate) {
+	var nextEvent = data[0];
+	var eventDate = new Date(nextEvent.start_time);
+	var todayDate = new Date();
+
+	for (var i = 1; i < data.length; i++) {
+		nextEvent = data[i];
+		eventDate = new Date(nextEvent.start_time);
+		if (eventDate.getTime() > todayDate.getTime()) {
+			break;
+		}
+	}
+
+        if (eventDate.getTime() < todayDate.getTime()) {
              cb([]);
              return;
         }
 
         graph.get('/' + nextEvent.id + '/picture?type=large', function(err2, picRes) {
-            console.log('err2: ' + JSON.stringify(err2));
-            console.log('picRes: ' + JSON.stringify(picRes));
             var nextEventPost = {
                 'title': nextEvent.name,
                 'subtitle': nextEvent.place.name,
@@ -78,14 +82,14 @@ function getUpcomingEvents(cb) {
                     }
                 ]
             };
-
+            console.log('returning: ' + JSON.stringify(nextEventPost));
             cb([nextEventPost]);
             return;
         });
     });
 }
 
-controller.hears(['the next event', 'coming up event', 'event coming up'], 'message_received',
+controller.hears(['upcoming event', 'next event', 'coming up event', 'event coming up'], 'message_received',
     function(bot, message) {
     getUpcomingEvents(function(events) {
         if (events.length == 0) {
@@ -112,11 +116,17 @@ controller.hears(['verse', 'passage', 'bible'], 'message_received', function(bot
             body += d;
         });
         res.on('end', function(d) {
-            var parsedJSON = JSON.parse(body);
-            var verse = parsedJSON.verse.details.text;
-            var reference = parsedJSON.verse.details.reference;
-            var version = parsedJSON.verse.details.version;
-            bot.reply(message, '"' + verse + '" - ' + reference + ' - ' + version + '.');
+	    try {
+            	var parsedJSON = JSON.parse(body.replace(/""/g, '"'));
+            	var verse = parsedJSON.verse.details.text;
+            	var reference = parsedJSON.verse.details.reference;
+            	var version = parsedJSON.verse.details.version;
+            	bot.reply(message, '"' + verse + '" - ' + reference + ' - ' + version + '.');
+	    } catch (e) {
+		bot.reply(message, 'There seems to be an error with fetching today\'s verse. I\'ll get this fixed ASAP!');
+		console.log('ERROR VERSE API: ' + e);
+		console.log('Result from API call: ' + body);
+	    }
             bot.reply(message, 'Have an amazing day! <3');
         });
     });
@@ -143,6 +153,10 @@ controller.hears(['uptime', 'how old are you'], 'message_received',
         var uptime = formatUptime(process.uptime());
         bot.reply(message,
             "I have been running for " + uptime + ".");
+});
+
+controller.hears(['ok', 'okay'], 'message_received', function(bot, message) {
+	bot.reply(message, ":)");
 });
 
 controller.on('message_received', function(bot, message) {
