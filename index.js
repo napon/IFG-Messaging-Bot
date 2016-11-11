@@ -1,6 +1,7 @@
 var http = require('http');
 var app = require('express')();
 var bodyParser = require('body-parser');
+var port = process.env.PORT || 4000;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
@@ -59,6 +60,6 @@ function createResponse(displayText, data) {
     };
 }
 
-app.listen(4000, function() {
-    console.log('Listening on 4000..');
+app.listen(port, function() {
+    console.log('Listening on ' + port + '..');
 });
