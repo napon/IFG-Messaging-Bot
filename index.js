@@ -1,3 +1,4 @@
+var async = require('async');
 var http = require('http');
 var app = require('express')();
 var bodyParser = require('body-parser');
@@ -68,7 +69,6 @@ function handleVerse(cb) {
 
 function getUpcomingEvents(token, cb) {
 	graph.setAccessToken(token);
-	
     var events = [];
     graph.get('/631063610257770/events', function(err, res) {
         if (err) {
@@ -83,11 +83,13 @@ function getUpcomingEvents(token, cb) {
         var nextEvent = data[0];
         var eventDate = new Date(nextEvent.start_time);
         var todayDate = new Date();
+        var startPoint = 0; 
 
         for (var i = 1; i < data.length; i++) {
             nextEvent = data[i];
             eventDate = new Date(nextEvent.start_time);
             if (eventDate.getTime() > todayDate.getTime()) {
+                startPoint = i;
                 break;
             }
         }
@@ -97,23 +99,31 @@ function getUpcomingEvents(token, cb) {
              return;
         }
 
-        graph.get('/' + nextEvent.id + '/picture?type=large', function(err2, picRes) {
-            var nextEventPost = {
-                'title': nextEvent.name,
-                'subtitle': nextEvent.place.name,
-                'image_url': picRes.location,
-                'buttons': [
-                    {
-                        'type': 'web_url',
-                        'url': 'https://www.facebook.com/events/' + nextEvent.id,
-                        'title': 'More info'
-                    }
-                ]
-            };
-            console.log('returning: ' + JSON.stringify(nextEventPost));
-            cb([nextEventPost]);
-            return;
+        data.splice(0, startPoint); // extract only the upcoming events.
+        async.map(data, renderEvent, function(results, err) {
+            if (err) {
+                cb(err);
+            } else {
+                cb(results);
+            }
         });
+
+        function renderEvent(nextEvent, cb) {
+            graph.get('/' + nextEvent.id + '/picture?type=large', function(err2, picRes) {
+                cb(null, {
+                    'title': nextEvent.name,
+                    'subtitle': nextEvent.place.name,
+                    'image_url': picRes.location,
+                    'buttons': [
+                        {
+                            'type': 'web_url',
+                            'url': 'https://www.facebook.com/events/' + nextEvent.id,
+                            'title': 'More info'
+                        }
+                    ]
+                });
+            });
+        }
     });
 }
 
