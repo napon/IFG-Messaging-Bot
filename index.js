@@ -9,6 +9,25 @@ var port = process.env.PORT || 4000;
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
 
+// Webhook validation
+app.get('/webhook', function(req, res) {
+  if (req.query['hub.mode'] === 'subscribe' &&
+      req.query['hub.verify_token'] === process.env.VERIFY_TOKEN) {
+    console.log("Validating webhook");
+    res.status(200).send(req.query['hub.challenge']);
+  } else {
+    console.error("Failed validation. Make sure the validation tokens match.");
+    res.sendStatus(403);          
+  }
+});
+
+// Display the web page
+app.get('/', function(req, res) {
+  res.writeHead(200, {'Content-Type': 'text/html'});
+  res.write('IFG BOT');
+  res.end();
+});
+
 app.post('/webhook', function (req, res) {
     var body = req.body;
     var action = body.result.action;
